@@ -45,11 +45,6 @@ class App {
     private setMongoConfig() {
         mongoose.Promise = global.Promise;
         mongoose.connect(`${process.env.MONGO_URL}`, { })
-        // var db = mongoose.connection
-        // db.on('error', function (err) {
-        // })
-        // db.once('open', function () {
-        // })
     }
 
 }
