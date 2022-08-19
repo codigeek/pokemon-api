@@ -1,15 +1,15 @@
 version: "3.1"
 
 services:
-  # stuffys:
-  #   container_name: stuffys
-  #   image: stuffys/stuffys
-  #   restart: always
-  #   build: .
-  #   ports:
-  #     - "9001:9001"
-  #   links:
-  #     - db
+  pokemon:
+    container_name: pokemon
+    image: pokemon/pokemon
+    restart: always
+    build: .
+    ports:
+      - "9001:9001"
+    links:
+      - db
   db:
     container_name: mongoDB
     image: mongo:latest

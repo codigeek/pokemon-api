@@ -13,13 +13,13 @@ export class PokemonController {
     }
 
     public setRoutes() {
-        this.router.route("/").get(this.findAll).post(this.add);
-        this.router.route("/:id").get(this.findByID).delete(this.delete).put(this.update);
+        this.router.route("/").get(this.findAll).post(this.addFavorite);
+        this.router.route("/:id").get(this.findByID).delete(this.delete);
     }
 
     private findAll = async (req: Request, res: Response) => {
         try {
-            const records = await this.pokemonService.findAll(req.query.quantity, req.query.page, req.query.search);
+            const records = await this.pokemonService.findAll(req.query.quantity, req.query.page);
             res.send(records);
         } catch (e: any) {
             res.status(500).send(e.message);
@@ -35,35 +35,18 @@ export class PokemonController {
         }
     };
 
-    private add = async (req: Request, res: Response) => {
+    private addFavorite = async (req: Request, res: Response) => {
         try {
-            req.body.params.date_created = req?.body?.info?.date;
-            req.body.params._id = new mongoose.Types.ObjectId();
-            if (req?.body?.params?.photo) {
-                if (req?.body?.params?.photo.includes("blob:")) {
-                    req.body.params.photo = `http://localhost:9001/public/pokemon_${req.body.params._id}.png`;
-                }
+            const record = await this.pokemonService.findByID(req?.body?.params?.id);    
+            const analytics = await this.pokemonService.getFavoriteData();      
+            if (record.length === 0) {
+                req.body.params._id = new mongoose.Types.ObjectId();
+                await this.pokemonService.addFavorite(req?.body?.params);
+                res.status(200).send({ message : "Pokemon favorited", analytics : analytics });
+            } else {
+                await this.pokemonService.delete(record[0]._id);
+                res.status(200).send({ message : "Pokemon unfavorited", analytics : analytics });
             }
-            const addRecord = await this.pokemonService.add(req?.body?.params);
-            res.send(addRecord);
-        } catch (e: any) {
-            res.status(500).send(e.message);
-        }
-    };
-
-    private update = async (req: Request, res: Response) => {
-        try {
-            req.body.params.date_modified = req.body.info.date;
-            if (req?.body?.params?.photo) {
-                if (req?.body?.params?.photo.includes("blob:")) {
-                    req.body.params.photo = `http://localhost:9001/public/pokemon_${req.params.id}.png`;
-                }
-            }
-            const updateRecordResult = await this.pokemonService.update(
-                req.params.id,
-                req.body.params
-            );
-            res.send(updateRecordResult);
         } catch (e: any) {
             res.status(500).send(e.message);
         }

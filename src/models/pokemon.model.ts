@@ -4,14 +4,11 @@ import { model, Schema } from "mongoose";
 import mongoose from "mongoose";
 
 const PokemonSchema = new Schema({
+    id: { type: String, required: [true, "Field is required"] },
     name: { type: String, required: [true, "Field is required"] },
-    description: { type: String, required: [true, "Field is required"] },
-    idif: { type: String, required: [true, "Field is required"] },
-    photo: { type: String },
-    users: [mongoose.Types.ObjectId],
-    active: { type: Boolean, required: [true, "Field is required"] },
-    date_created: Date,
-    date_modified: Date,
+    url: { type: String, required: [true, "Field is required"] },
+    detail: { type: Object },
+    favorite: { type: Boolean, required: [true, "Field is required"] }
 });
 
 export const Pokemon = model<IPokemon>("Pokemon", PokemonSchema);
