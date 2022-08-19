@@ -1,27 +1,30 @@
 import { Pokemon } from "../models/pokemon.model";
 import { IPokemon } from "../interfaces/pokemon.interface";
+import { Page } from "../models/page.model";
 import axios from "axios";
 
 export class PokemonService {
 
-  public async findPokeAPIPokemon(quantity: any, page: any, literalOffset: any) {
-    console.log("Literal offset?: ", { quantity, page, literalOffset });
+  public async findPokeAPIPokemon(quantity: any, offset: any) {
     const response = await axios.get('https://pokeapi.co/api/v2/pokemon', {
       params: {
         limit: quantity,
-        offset: page ? (quantity * (page - 1)) : literalOffset
+        offset: offset
       }
     });
     return response?.data;
   }
 
-  public async findFavorites(quantity: any, page: any): Promise<IPokemon[]> {
-    return await Pokemon.find()
-      // .skip(
-      //   parseInt(page) === 1 ? 0 : (parseInt(page) - 1) * parseInt(quantity))
-      // .limit(
-      //   parseInt(page) * parseInt(quantity))
-      .exec();
+  public async findFavorites(): Promise<any> {
+    let favorites = await Pokemon.find().exec();
+    let favoritesIds: Number[] = [];
+    favorites.forEach((favorite) => {
+      favoritesIds.push(parseInt(favorite.id));
+    });
+    return {
+      favorites,
+      favoritesIds
+    }
   }
 
   public async findPokemonDetails(pokemons: any) {
@@ -46,31 +49,27 @@ export class PokemonService {
     return pokemons;
   }
 
-  public async pokemonFavoritesComparison(pokemonFavorites: any, apiPokemons: any) {
-    return apiPokemons.filter((object1: any) => {
-      return !pokemonFavorites.some((object2: any) => {
-        return object1.detail.id.toString().trim() === object2.id.toString().trim();
-      });
-    });
+  public async returnRange(highRange: number, lowRange: number) {
+    return Array.apply(0, Array(highRange)).map((element, index) => (index + 1) + lowRange);
   }
 
-  public async calculateAverages(pokemonFavorites: any, apiPokemons: any) {
+  public async getAverages(pokemons: any, favorites: number) {
     let avgHeightFavorites = 0;
     let avgWeightFavorites = 0;
-    pokemonFavorites.forEach((pokemon: any) => {
-      avgHeightFavorites = + pokemon?.detail?.height;
-      avgWeightFavorites = + pokemon?.detail?.weight;
-    });
     let avgHeight = avgHeightFavorites;
     let avgWeight = avgWeightFavorites;
-    avgHeightFavorites = avgHeightFavorites / pokemonFavorites.length;
-    avgWeightFavorites = avgWeightFavorites / pokemonFavorites.length;
-    apiPokemons.forEach((pokemon: any) => {
-      avgHeight = + pokemon?.detail?.height;
-      avgWeight = + pokemon?.detail?.weight;
+    pokemons.forEach((pokemon: any) => {
+      if (pokemon.favorite) {
+        avgHeightFavorites += pokemon?.detail?.height;
+        avgWeightFavorites += pokemon?.detail?.weight;
+      }
+      avgHeight += pokemon?.detail?.height;
+      avgWeight += pokemon?.detail?.weight;
     });
-    avgHeight = avgHeight / apiPokemons.length;
-    avgWeight = avgWeight / apiPokemons.length;
+    avgHeightFavorites = avgHeightFavorites / favorites;
+    avgWeightFavorites = avgWeightFavorites / favorites;
+    avgHeight = avgHeight / pokemons.length;
+    avgWeight = avgWeight / pokemons.length;
     return {
       avgHeightFavorites,
       avgWeightFavorites,
@@ -79,33 +78,89 @@ export class PokemonService {
     };
   }
 
-  public async findAll(quantity: any, page: any, search: any): Promise<any> {
+  public async findAll(quantity: any, pageFront: any): Promise<any> {
     try {
 
-      let pokemonFavorites = await this.findFavorites(quantity, page);
-      pokemonFavorites = await this.findPokemonDetails(pokemonFavorites);
+      quantity = parseInt(quantity);
+      pageFront = parseInt(pageFront);
 
-      let pokemonResponse = await this.findPokeAPIPokemon(quantity - pokemonFavorites.length, page, 0);
-      const pokemonTotalCount = pokemonResponse?.count;
-      let apiPokemons = await this.findPokemonDetails(pokemonResponse?.results);
+      let { favorites, favoritesIds } = await this.findFavorites();
 
-      apiPokemons = await this.pokemonFavoritesComparison(pokemonFavorites, apiPokemons);
+      let pages: Page[];
+      pages = [];
 
-      while ((apiPokemons.length + pokemonFavorites.length) != quantity) {
-        pokemonResponse = await this.findPokeAPIPokemon(
-          quantity - (apiPokemons.length + pokemonFavorites.length),
-          undefined,
-          (apiPokemons.length + pokemonFavorites.length)
-        );
-        apiPokemons = [...apiPokemons, ...(await this.findPokemonDetails(pokemonResponse?.results))];
-        apiPokemons = await this.pokemonFavoritesComparison(pokemonFavorites, apiPokemons);
-        console.log({ apiL: apiPokemons.length, pfL: pokemonFavorites.length, quantity: quantity });
-      }
+      let { results, count } = await this.findPokeAPIPokemon(2000, 0);
+
+      const totalPages = Math.ceil(count / quantity);
+
+      [...Array(totalPages).keys()].forEach((page) => {
+        pages.push({
+          page: page + 1,
+          endsFavorites: false,
+          hasFavorites: false,
+          favoritesEndOn: 0,
+          highRange: 0,
+          lowRange: 0,
+          pokemons: [],
+          pokemonsCount: 0
+        });
+      });
+
+      let favoritesAlive = true;
+      pages.forEach(async (page: any, index: any) => {
+        if (favoritesAlive) {
+
+          if ((quantity * page.page) > favorites.length && (quantity * (page.page - 1)) <= favorites.length) {
+
+            favoritesAlive = false;
+            page.endsFavorites = true;
+            page.lowRange = 0;
+            page.highRange = (quantity * page.page) - favorites.length;
+
+            page.pokemons = favorites.slice((page.page * quantity) - quantity, favorites.length - ((page.page * quantity) - quantity));
+
+            results.forEach((pokemon: any, index: any) => {
+              const segments = pokemon?.url.split("/");
+              const pokemonId = parseInt(segments[segments.length - 2]);
+              if (favoritesIds.includes(pokemonId)) {
+                results.splice(index, 1);
+              }
+            });
+
+            page.pokemons = [
+              ...page.pokemons,
+              ...results.slice(page.lowRange, page.highRange)
+            ]
+            page.pokemonsCount = page.pokemons.length;
+
+          } else {
+            page.pokemons = favorites.slice((page.page * quantity) - quantity, (page.page * quantity));
+          }
+        } else {
+          if (pages[index - 1]) {
+            page.lowRange = pages[index - 1].highRange;
+            page.highRange = page.lowRange + quantity;
+            page.pokemons = [
+              ...page.pokemons,
+              ...results.slice(page.lowRange, page.highRange)
+            ]
+            page.pokemonsCount = page.pokemons.length;
+          }
+        }
+      });
+
+      pages[pageFront - 1].pokemons = await this.findPokemonDetails(pages[pageFront - 1]?.pokemons);
+
+      const { avgHeight, avgWeight } = await this.getAverages(
+        pages[pageFront - 1].pokemons,
+        favorites.length
+      );
 
       return {
-        count: pokemonTotalCount,
-        ...(await this.calculateAverages(pokemonFavorites, apiPokemons)),
-        results: [...pokemonFavorites, ...apiPokemons]
+        count,
+        pokemons: pages[pageFront - 1].pokemons,
+        avgHeight,
+        avgWeight
       };
 
     } catch (error) {

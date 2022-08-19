@@ -19,7 +19,7 @@ export class PokemonController {
 
     private findAll = async (req: Request, res: Response) => {
         try {
-            const records = await this.pokemonService.findAll(req.query.quantity, req.query.page, req.query.search);
+            const records = await this.pokemonService.findAll(req.query.quantity, req.query.page);
             res.send(records);
         } catch (e: any) {
             res.status(500).send(e.message);
