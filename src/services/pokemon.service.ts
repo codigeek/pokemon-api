@@ -182,6 +182,20 @@ export class PokemonService {
     return newRecord.save();
   }
 
+  public async getFavoriteData(): Promise<any> {
+    let { favorites } = await this.findFavorites();
+    favorites = await this.findPokemonDetails(favorites);
+    const { avgHeightFavorites, avgWeightFavorites } = await this.getAverages(
+      favorites,
+      favorites.length
+    );
+    return {
+      count: favorites.length,
+      avgHeightFavorites,
+      avgWeightFavorites
+    };
+  }
+
   public async delete(id: string): Promise<IPokemon> {
     const deletedDocument = await Pokemon.findByIdAndDelete(
       id

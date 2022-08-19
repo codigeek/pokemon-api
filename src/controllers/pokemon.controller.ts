@@ -37,14 +37,15 @@ export class PokemonController {
 
     private addFavorite = async (req: Request, res: Response) => {
         try {
-            const record = await this.pokemonService.findByID(req?.body?.params?.id);          
+            const record = await this.pokemonService.findByID(req?.body?.params?.id);    
+            const analytics = await this.pokemonService.getFavoriteData();      
             if (record.length === 0) {
                 req.body.params._id = new mongoose.Types.ObjectId();
                 await this.pokemonService.addFavorite(req?.body?.params);
-                res.status(200).send("Pokemon favorited");
+                res.status(200).send({ message : "Pokemon favorited", analytics : analytics });
             } else {
                 await this.pokemonService.delete(record[0]._id);
-                res.status(200).send("Pokemon unfavorited");
+                res.status(200).send({ message : "Pokemon unfavorited", analytics : analytics });
             }
         } catch (e: any) {
             res.status(500).send(e.message);
